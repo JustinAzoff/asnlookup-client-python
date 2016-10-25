@@ -59,7 +59,7 @@ class ASNClient:
         return next(self.lookup_many([ip]))
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     endpoint = 'tcp://localhost:5555'
     if len(sys.argv) > 1:
