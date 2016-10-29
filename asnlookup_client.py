@@ -38,7 +38,7 @@ class ASNClient:
     def __init__(self, endpoint='tcp://localhost:5555'):
         context = zmq.Context()
         logger.debug("Connecting to asn lookup server")
-        socket = context.socket(zmq.REQ)
+        socket = context.socket(zmq.DEALER)
         socket.set(zmq.LINGER, 200)
         socket.connect(endpoint)
         self.socket = socket
@@ -58,12 +58,26 @@ class ASNClient:
 
     def lookup_many(self, ips):
         poll = self.poller.poll
+        outstanding = 0
         for batch in chunk(ips, 100):
             msg = ' '.join(batch)
             self.socket.send_string(msg)
+            outstanding += 1
+            if outstanding < 10:
+                continue
             if not poll(timeout=3000):
                 raise Timeout()
             response = self.socket.recv_string()
+            outstanding -=1
+            records = json.loads(response)
+            for rec in records:
+                yield dict(zip(self.fields, rec))
+
+        for _ in range(outstanding):
+            if not poll(timeout=3000):
+                raise Timeout()
+            response = self.socket.recv_string()
+            outstanding -=1
             records = json.loads(response)
             for rec in records:
                 yield dict(zip(self.fields, rec))
