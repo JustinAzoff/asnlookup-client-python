@@ -59,7 +59,7 @@ class ASNClient:
     def lookup_many(self, ips):
         poll = self.poller.poll
         outstanding = 0
-        for batch in chunk(ips, 100):
+        for batch in chunk(ips, 200):
             msg = ' '.join(batch)
             self.socket.send_string(msg)
             outstanding += 1
