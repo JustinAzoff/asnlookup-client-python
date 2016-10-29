@@ -5,6 +5,9 @@ import zmq
 
 logger = logging.getLogger(__name__)
 
+class Timeout(Exception):
+    pass
+
 def chunk(it, slice=50):
     """Generate sublists from an iterator
     >>> list(chunk(iter(range(10)),11))
@@ -36,20 +39,30 @@ class ASNClient:
         context = zmq.Context()
         logger.debug("Connecting to asn lookup server")
         socket = context.socket(zmq.REQ)
+        socket.set(zmq.LINGER, 200)
         socket.connect(endpoint)
         self.socket = socket
 
+
+        poller = zmq.Poller()
+        poller.register(self.socket, zmq.POLLIN)
+        self.poller = poller
         self.get_fields()
 
     def get_fields(self):
         self.socket.send_string("fields")
+        if not self.poller.poll(timeout=3000):
+            raise Timeout()
         self.fields = json.loads(self.socket.recv_string())
         logger.debug("fields=%s", self.fields)
 
     def lookup_many(self, ips):
+        poll = self.poller.poll
         for batch in chunk(ips, 100):
             msg = ' '.join(batch)
             self.socket.send_string(msg)
+            if not poll(timeout=3000):
+                raise Timeout()
             response = self.socket.recv_string()
             records = json.loads(response)
             for rec in records:
