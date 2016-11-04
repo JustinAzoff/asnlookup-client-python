@@ -44,20 +44,16 @@ class ASNClient:
         self.socket = socket
 
 
-        poller = zmq.Poller()
-        poller.register(self.socket, zmq.POLLIN)
-        self.poller = poller
         self.get_fields()
 
     def get_fields(self):
         self.socket.send_string("fields")
-        if not self.poller.poll(timeout=3000):
+        if not self.socket.poll(timeout=3000):
             raise Timeout()
         self.fields = json.loads(self.socket.recv_string())
         logger.debug("fields=%s", self.fields)
 
     def lookup_many(self, ips):
-        poll = self.poller.poll
         outstanding = 0
         for batch in chunk(ips, 100):
             msg = ' '.join(batch)
@@ -65,7 +61,7 @@ class ASNClient:
             outstanding += 1
             if outstanding < 10:
                 continue
-            if not poll(timeout=3000):
+            if not self.socket.poll(timeout=3000):
                 raise Timeout()
             response = self.socket.recv_string()
             outstanding -=1
@@ -74,7 +70,7 @@ class ASNClient:
                 yield dict(zip(self.fields, rec))
 
         for _ in range(outstanding):
-            if not poll(timeout=3000):
+            if not self.socket.poll(timeout=3000):
                 raise Timeout()
             response = self.socket.recv_string()
             outstanding -=1
